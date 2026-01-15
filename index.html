@@ -145,8 +145,8 @@
             isLoaded = true;
 
             // --- AJUSTE DE CÁMARA PARA ALEJAR EL MODELO ---
-            // Se cambió 600m a 1600m para alejarlo significativamente
-            modelViewer.cameraOrbit = "-0.01475rad 1.49484rad 1600m";
+            // AUMENTADO DE 1600m a 4000m
+            modelViewer.cameraOrbit = "-0.01475rad 1.49484rad 4000m";
             
             modelViewer.cameraTarget = `${initialX}m ${initialY}m 89.2276m`;
             modelViewer.fieldOfView = "10deg"; 
@@ -160,7 +160,8 @@
             console.error("Error cargando el modelo:", error);
             loaderContainer.style.display = 'none';
             errorMsg.style.display = 'block';
-            errorMsg.innerHTML = `Error al cargar: SPIDERFLASH3.glb<br><small>Revisa el nombre del archivo.</small>`;
+            // Corregido nombre del archivo en el error
+            errorMsg.innerHTML = `Error al cargar: bolapoder1.glb<br><small>Revisa el nombre del archivo.</small>`;
         });
 
         modelViewer.addEventListener('camera-change', (event) => {
@@ -181,12 +182,13 @@
             // Aseguramos que el audio esté activado y volumen al máximo
             bgVideo.muted = false;
             bgVideo.volume = 1.0;
+            bgVideo.currentTime = 0; // Reinicia el video al principio al dar click
 
             bgVideo.play().then(() => {
                 bgVideo.style.opacity = '1';
             }).catch(error => {
-                console.log("Error al reproducir video:", error);
-                // Fallback si hay error: intentar muteado si falla con audio
+                console.log("Error al reproducir video con audio:", error);
+                // Fallback: si falla el audio (raro en click), intenta muteado
                 bgVideo.muted = true;
                 bgVideo.play();
                 bgVideo.style.opacity = '1';
