@@ -81,7 +81,7 @@
         <button id="start-button">VER EXPERIENCIA</button>
     </div>
 
-    <video id="bg-video" loop playsinline>
+    <video id="bg-video" loop playsinline crossOrigin="anonymous">
         <source src="caballeros.mp4" type="video/mp4">
     </video>
 
@@ -116,6 +116,10 @@
         
         let isLoaded = false;
 
+        // --- VARIABLES DE AUDIO Y VIBRACION ---
+        let audioContext, analyser, source;
+        let isAudioInitialized = false;
+
         modelViewer.addEventListener('progress', (event) => {
             const percentage = Math.round(event.detail.totalProgress * 100);
             progressText.innerText = `Cargando ${percentage}%`;
@@ -124,8 +128,6 @@
         modelViewer.addEventListener('load', () => {
             console.log("Modelo cargado exitosamente.");
             isLoaded = true;
-            // Hemos eliminado el código que forzaba la cámara a una posición fija.
-            // Ahora model-viewer calculará la mejor vista automáticamente.
             loaderContainer.style.display = 'none';
             startButton.style.display = 'block';
         });
@@ -137,18 +139,48 @@
             errorMsg.innerHTML = `Error al cargar: bolapoder1.glb`;
         });
 
-        // NOTA: Eliminamos el evento 'camera-change' porque restringía el movimiento
-        // y causaba que el objeto desapareciera si no estaba en las coordenadas exactas.
-
         startButton.addEventListener('click', () => {
+            // 1. CONFIGURAR AUDIO Y VIBRACION (Requiere interacción del usuario)
+            if (!isAudioInitialized) {
+                try {
+                    // Crear contexto de audio
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Crear fuente desde el video
+                    source = audioContext.createMediaElementSource(bgVideo);
+                    
+                    // Crear analizador
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256; 
+                    
+                    // Conectar: Video -> Analizador -> Altavoces (Destination)
+                    // (Si no conectas al destino, el video se queda mudo)
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    
+                    isAudioInitialized = true;
+                    // Iniciar el loop de análisis
+                    analizarAudio();
+                } catch (e) {
+                    console.log("Advertencia de audio (probablemente CORS o local file):", e);
+                    // Si falla el audioContext, el video sigue funcionando normal, solo sin vibración
+                }
+            }
+
+            // 2. REPRODUCIR VIDEO Y UI
             bgVideo.muted = false;
             bgVideo.volume = 1.0;
             bgVideo.currentTime = 0; 
 
             bgVideo.play().then(() => {
                 bgVideo.style.opacity = '1';
+                // Si el contexto estaba suspendido (pasa a veces en móviles), lo reanudamos
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
             }).catch(error => {
                 console.log("Error al reproducir video:", error);
+                // Fallback si el navegador bloquea el autoplay con sonido
                 bgVideo.muted = true;
                 bgVideo.play();
                 bgVideo.style.opacity = '1';
@@ -160,6 +192,40 @@
                 document.body.classList.add('loaded');
             }, 600);
         });
+
+        // --- FUNCION DE ANALISIS DE FRECUENCIA PARA VIBRAR ---
+        function analizarAudio() {
+            if (!isAudioInitialized || bgVideo.paused) {
+                requestAnimationFrame(analizarAudio);
+                return;
+            }
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Analizar solo el último 30% del espectro (Tonos agudos)
+            let sumaAgudos = 0;
+            let contador = 0;
+            let indiceInicio = Math.floor(bufferLength * 0.7); 
+
+            for (let i = indiceInicio; i < bufferLength; i++) {
+                sumaAgudos += dataArray[i];
+                contador++;
+            }
+
+            let promedioAgudos = sumaAgudos / contador;
+
+            // UMBRAL: Si los agudos superan intensidad 110 (Ajustable 0-255)
+            if (promedioAgudos > 110) {
+                // Vibración corta de 40ms
+                if (navigator.vibrate) {
+                    navigator.vibrate(40); 
+                }
+            }
+
+            requestAnimationFrame(analizarAudio);
+        }
     </script>
 </body>
 </html>
