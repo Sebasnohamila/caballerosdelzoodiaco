@@ -17,7 +17,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            object-fit: cover; /* Mantiene el video llenando toda la pantalla (tipo portrait) */
+            object-fit: cover; 
             z-index: 0;
             opacity: 0; 
             transition: opacity 1s ease;
@@ -107,9 +107,9 @@
         loading="eager"
         disable-tap
         min-field-of-view="5deg"
-        max-field-of-view="15deg"
+        max-field-of-view="45deg"
         min-camera-orbit="-30deg 56deg auto"
-        max-camera-orbit="30deg 116deg auto"
+        max-camera-orbit="30deg 116deg 50000m"
         interpolation-decay="0" 
         camera-controls
         shadow-intensity="1"
@@ -144,12 +144,18 @@
             console.log("Modelo cargado exitosamente.");
             isLoaded = true;
 
-            // --- AJUSTE DE CÁMARA PARA ALEJAR EL MODELO ---
-            // AUMENTADO DE 1600m a 4000m
+            // --- AJUSTE DE CÁMARA (ALEJAR) ---
+            
+            // 1. Distancia física (radius): 4000 metros
+            // Nota: Esto ahora funcionará porque cambiamos el max-camera-orbit en el HTML arriba
             modelViewer.cameraOrbit = "-0.01475rad 1.49484rad 4000m";
             
+            // 2. Zoom óptico (Field of View): 
+            // Aumentado a 30deg (antes era 10deg). 
+            // Cuanto mayor sea este número, más lejos se ve el objeto (Zoom Out).
+            modelViewer.fieldOfView = "30deg"; 
+            
             modelViewer.cameraTarget = `${initialX}m ${initialY}m 89.2276m`;
-            modelViewer.fieldOfView = "10deg"; 
             modelViewer.jumpCameraToGoal();
 
             loaderContainer.style.display = 'none';
@@ -160,7 +166,6 @@
             console.error("Error cargando el modelo:", error);
             loaderContainer.style.display = 'none';
             errorMsg.style.display = 'block';
-            // Corregido nombre del archivo en el error
             errorMsg.innerHTML = `Error al cargar: bolapoder1.glb<br><small>Revisa el nombre del archivo.</small>`;
         });
 
@@ -177,18 +182,15 @@
             }
         });
 
-        // BOTÓN DE INICIO: Maneja la reproducción del video CON AUDIO
         startButton.addEventListener('click', () => {
-            // Aseguramos que el audio esté activado y volumen al máximo
             bgVideo.muted = false;
             bgVideo.volume = 1.0;
-            bgVideo.currentTime = 0; // Reinicia el video al principio al dar click
+            bgVideo.currentTime = 0; 
 
             bgVideo.play().then(() => {
                 bgVideo.style.opacity = '1';
             }).catch(error => {
                 console.log("Error al reproducir video con audio:", error);
-                // Fallback: si falla el audio (raro en click), intenta muteado
                 bgVideo.muted = true;
                 bgVideo.play();
                 bgVideo.style.opacity = '1';
@@ -200,7 +202,6 @@
                 document.body.classList.add('loaded');
             }, 600);
         });
-
     </script>
 </body>
 </html>
