@@ -10,16 +10,12 @@
         /* Estilos Generales */
         body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #000; }
         
-        /* --- VIDEO DE FONDO --- */
+        /* VIDEO DE FONDO */
         #bg-video {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover; 
-            z-index: 0;
-            opacity: 0; 
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: cover;
+            z-index: 0; opacity: 0; 
             transition: opacity 1s ease;
         }
 
@@ -28,12 +24,11 @@
             width: 100vw; height: 100vh;
             background-color: transparent; 
             position: absolute; top: 0; left: 0; 
-            z-index: 1; 
-            outline: none;
+            z-index: 1; outline: none;
             --poster-color: transparent;
         }
 
-        /* --- BOTÓN DE WHATSAPP --- */
+        /* Botón WhatsApp */
         #whatsapp-button {
             position: fixed; bottom: 25px; right: 25px; z-index: 9999;
             width: 42px; height: 42px; background-color: transparent;
@@ -53,19 +48,15 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 999; transition: opacity 0.6s ease-out;
         }
-
         #company-logo { max-width: 150px; margin-bottom: 40px; }
         #loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
             border-radius: 50%; border-left-color: #333;
             animation: spin 1s linear infinite; margin-bottom: 15px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
         .loading-text { color: #666; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: bold; }
-        
         #error-message { color: #e74c3c; margin-top: 20px; display: none; text-align: center; font-size: 14px; padding: 0 20px; }
         
         #start-button {
@@ -82,17 +73,11 @@
 
     <div id="splash-screen">
         <img src="logo.png" alt="Bhastian" id="company-logo" onerror="this.style.display='none'">
-        
         <div id="loader-container">
             <div class="spinner"></div>
             <div class="loading-text" id="progress-text">Cargando 0%</div>
         </div>
-        
-        <div id="error-message">
-            No se pudo cargar el modelo.<br>
-            <small>Verifica el nombre del archivo y la conexión.</small>
-        </div>
-        
+        <div id="error-message">Error al cargar modelo.<br><small>Verifica el archivo.</small></div>
         <button id="start-button">VER EXPERIENCIA</button>
     </div>
 
@@ -106,12 +91,11 @@
         alt="CABALLEROS DEL ZOODIACO 3D"
         loading="eager"
         disable-tap
-        min-field-of-view="5deg"
-        max-field-of-view="45deg"
-        min-camera-orbit="-30deg 56deg auto"
-        max-camera-orbit="30deg 116deg 50000m"
-        interpolation-decay="0" 
         camera-controls
+        camera-target="auto auto auto"
+        camera-orbit="0deg 75deg 105%"
+        min-camera-orbit="auto auto auto"
+        max-camera-orbit="auto auto auto"
         shadow-intensity="1"
         ar
         ar-modes="webxr scene-viewer quick-look">
@@ -131,9 +115,6 @@
         const progressText = document.getElementById('progress-text');
         
         let isLoaded = false;
-        const initialX = -0.40003; 
-        const initialY = 101.9667; 
-        const limitY = 30; 
 
         modelViewer.addEventListener('progress', (event) => {
             const percentage = Math.round(event.detail.totalProgress * 100);
@@ -143,21 +124,8 @@
         modelViewer.addEventListener('load', () => {
             console.log("Modelo cargado exitosamente.");
             isLoaded = true;
-
-            // --- AJUSTE DE CÁMARA (ALEJAR) ---
-            
-            // 1. Distancia física (radius): 4000 metros
-            // Nota: Esto ahora funcionará porque cambiamos el max-camera-orbit en el HTML arriba
-            modelViewer.cameraOrbit = "-0.01475rad 1.49484rad 4000m";
-            
-            // 2. Zoom óptico (Field of View): 
-            // Aumentado a 30deg (antes era 10deg). 
-            // Cuanto mayor sea este número, más lejos se ve el objeto (Zoom Out).
-            modelViewer.fieldOfView = "30deg"; 
-            
-            modelViewer.cameraTarget = `${initialX}m ${initialY}m 89.2276m`;
-            modelViewer.jumpCameraToGoal();
-
+            // Hemos eliminado el código que forzaba la cámara a una posición fija.
+            // Ahora model-viewer calculará la mejor vista automáticamente.
             loaderContainer.style.display = 'none';
             startButton.style.display = 'block';
         });
@@ -166,21 +134,11 @@
             console.error("Error cargando el modelo:", error);
             loaderContainer.style.display = 'none';
             errorMsg.style.display = 'block';
-            errorMsg.innerHTML = `Error al cargar: bolapoder1.glb<br><small>Revisa el nombre del archivo.</small>`;
+            errorMsg.innerHTML = `Error al cargar: bolapoder1.glb`;
         });
 
-        modelViewer.addEventListener('camera-change', (event) => {
-            if (!isLoaded) return;
-            const target = modelViewer.getCameraTarget();
-            let newX = initialX;
-            let newY = target.y;
-            if (newY > initialY + limitY) newY = initialY + limitY;
-            if (newY < initialY - limitY) newY = initialY - limitY;
-
-            if (Math.abs(target.x - newX) > 0.001 || Math.abs(target.y - newY) > 0.001) {
-                modelViewer.cameraTarget = `${newX}m ${newY}m ${target.z}m`;
-            }
-        });
+        // NOTA: Eliminamos el evento 'camera-change' porque restringía el movimiento
+        // y causaba que el objeto desapareciera si no estaba en las coordenadas exactas.
 
         startButton.addEventListener('click', () => {
             bgVideo.muted = false;
@@ -190,7 +148,7 @@
             bgVideo.play().then(() => {
                 bgVideo.style.opacity = '1';
             }).catch(error => {
-                console.log("Error al reproducir video con audio:", error);
+                console.log("Error al reproducir video:", error);
                 bgVideo.muted = true;
                 bgVideo.play();
                 bgVideo.style.opacity = '1';
