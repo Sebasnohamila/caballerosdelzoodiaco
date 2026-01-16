@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiencia Caballeros - Debug</title>
+    <title>Experiencia Caballeros - Vibración Sensible</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
         body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
         
-        /* MEDIDOR VISUAL (Para ver si el código "escucha" el audio) */
+        /* MEDIDOR VISUAL (Barra verde) */
         #audio-meter {
             position: fixed; top: 0; left: 0; height: 10px; width: 0%;
             background-color: #00ff00; z-index: 10000; transition: width 0.1s;
@@ -34,25 +34,27 @@
         }
         
         #start-button {
-            margin-top: 20px; padding: 20px 40px; background-color: #000; color: white;
-            border: none; border-radius: 30px; font-size: 16px; font-weight: bold; cursor: pointer;
+            margin-top: 20px; padding: 25px 50px; background-color: #000; color: white;
+            border: none; border-radius: 30px; font-size: 18px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        /* Texto de estado para depuración */
+        /* Texto de estado para depuración (letras rojas/verdes) */
         #debug-text {
-            position: fixed; top: 20px; left: 10px; color: red; font-weight: bold; 
-            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 12px;
+            position: fixed; top: 20px; left: 10px; color: yellow; font-weight: bold; 
+            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px;
         }
     </style>
 </head>
 <body>
 
     <div id="audio-meter"></div>
-    <div id="debug-text">Esperando inicio...</div>
+    <div id="debug-text">Listo. Sube el volumen.</div>
 
     <div id="splash-screen">
         <h2>EXPERIENCIA 3D</h2>
-        <button id="start-button">TOCA AQUÍ PARA INICIAR</button>
+        <p style="color: #666">Sube el volumen de tu celular</p>
+        <button id="start-button">INICIAR EXPERIENCIA</button>
     </div>
 
     <video id="bg-video" loop playsinline crossOrigin="anonymous">
@@ -75,38 +77,35 @@
         let lastVibrateTime = 0;
 
         btn.addEventListener('click', async () => {
+            // --- VIBRACIÓN DE PRUEBA INICIAL ---
+            // Esto es crucial: Vibramos al hacer clic para "despertar" el motor.
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]); // Vibración doble: bzz-bzz
+                console.log("Vibración de prueba enviada");
+            }
+
             try {
-                // 1. Inicializar AudioContext
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AudioContext();
                 
-                // 2. Crear Analizador
                 analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 256; 
 
-                // 3. Conectar Video -> Analizador -> Destino
-                // Si esto falla por CORS, saldrá en el catch
                 source = audioCtx.createMediaElementSource(video);
                 source.connect(analyser);
                 analyser.connect(audioCtx.destination);
 
-                // 4. Reproducir Video
-                video.muted = false; // Intentar sin mute
+                video.muted = false; 
                 await video.play();
                 
                 video.style.opacity = '1';
                 splash.style.opacity = '0';
                 setTimeout(() => splash.style.display = 'none', 600);
 
-                // Iniciar análisis
-                debug.innerText = "Audio iniciado. Mira la barra verde.";
                 loopAnalisis();
 
             } catch (e) {
-                console.error(e);
-                debug.innerText = "ERROR: " + e.message;
-                // Si falla createMediaElementSource, suele ser CORS.
-                // Fallback: Reproducir video sin vibración
+                debug.innerText = "Error: " + e.message;
                 video.play();
                 video.style.opacity = '1';
                 splash.style.display = 'none';
@@ -116,42 +115,46 @@
         function loopAnalisis() {
             requestAnimationFrame(loopAnalisis);
             
+            if (!analyser) return;
+
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteFrequencyData(dataArray);
 
-            // Calcular volumen de agudos (última mitad del array)
+            // Calcular volumen de tonos altos
             let suma = 0;
             let count = 0;
-            for (let i = Math.floor(bufferLength * 0.6); i < bufferLength; i++) {
+            // Analizamos desde la mitad del espectro hacia arriba
+            for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) {
                 suma += dataArray[i];
                 count++;
             }
             const volumenAgudos = suma / count;
 
-            // --- ACTUALIZAR BARRA VISUAL ---
-            // Multiplicamos x2 para que se vea más evidente
-            meter.style.width = (volumenAgudos * 2) + "%";
+            // Visual: Multiplicamos x5 para ver la barra moverse aunque el sonido sea bajo
+            meter.style.width = (volumenAgudos * 5) + "%";
             
-            // Debug texto con valor numérico
-            debug.innerText = "Vol: " + Math.floor(volumenAgudos);
+            // Debug en pantalla
+            debug.innerText = "Nivel: " + Math.floor(volumenAgudos);
 
-            // --- LOGICA DE VIBRACION ---
-            // Bajamos el umbral a 60 para asegurar que vibre fácil
-            if (volumenAgudos > 60) {
+            // --- LÓGICA DE VIBRACIÓN AJUSTADA ---
+            // UMBRAL: Mayor a 12 (muy sensible)
+            if (volumenAgudos > 12) {
                 const now = Date.now();
-                // "Cooldown": Solo vibrar si pasaron 100ms desde la última vez
-                // Esto evita que el motor se sature y deje de responder
-                if (now - lastVibrateTime > 100) {
+                
+                // COOLDOWN: Esperar 150ms entre vibraciones para no saturar
+                if (now - lastVibrateTime > 150) {
+                    debug.style.color = "#00ff00"; // Texto verde
+                    debug.innerText += " (VIBRANDO)";
+                    
                     if (navigator.vibrate) {
-                        navigator.vibrate(50); // Vibración corta
-                        debug.innerText = "!!! VIBRANDO !!! (" + Math.floor(volumenAgudos) + ")";
-                        debug.style.color = "#00ff00";
+                        // Vibrar 100 milisegundos
+                        navigator.vibrate(100); 
                     }
                     lastVibrateTime = now;
                 }
             } else {
-                debug.style.color = "red";
+                debug.style.color = "yellow";
             }
         }
     </script>
