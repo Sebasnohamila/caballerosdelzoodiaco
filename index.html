@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiencia Caballeros - Vibración Sensible</title>
+    <title>Experiencia Caballeros - Ajustado a 25</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
@@ -39,7 +39,7 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        /* Texto de estado para depuración (letras rojas/verdes) */
+        /* Texto de estado para depuración */
         #debug-text {
             position: fixed; top: 20px; left: 10px; color: yellow; font-weight: bold; 
             z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px;
@@ -49,11 +49,11 @@
 <body>
 
     <div id="audio-meter"></div>
-    <div id="debug-text">Listo. Sube el volumen.</div>
+    <div id="debug-text">Listo. Umbral ajustado a 25.</div>
 
     <div id="splash-screen">
         <h2>EXPERIENCIA 3D</h2>
-        <p style="color: #666">Sube el volumen de tu celular</p>
+        <p style="color: #666">Sube el volumen al máximo</p>
         <button id="start-button">INICIAR EXPERIENCIA</button>
     </div>
 
@@ -77,11 +77,9 @@
         let lastVibrateTime = 0;
 
         btn.addEventListener('click', async () => {
-            // --- VIBRACIÓN DE PRUEBA INICIAL ---
-            // Esto es crucial: Vibramos al hacer clic para "despertar" el motor.
+            // Vibración inicial para confirmar que el motor responde
             if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]); // Vibración doble: bzz-bzz
-                console.log("Vibración de prueba enviada");
+                navigator.vibrate([100, 50, 100]); 
             }
 
             try {
@@ -106,6 +104,7 @@
 
             } catch (e) {
                 debug.innerText = "Error: " + e.message;
+                // Fallback en caso de error: reproducir video sin efectos
                 video.play();
                 video.style.opacity = '1';
                 splash.style.display = 'none';
@@ -121,40 +120,34 @@
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteFrequencyData(dataArray);
 
-            // Calcular volumen de tonos altos
+            // Calcular volumen de agudos
             let suma = 0;
             let count = 0;
-            // Analizamos desde la mitad del espectro hacia arriba
             for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) {
                 suma += dataArray[i];
                 count++;
             }
             const volumenAgudos = suma / count;
 
-            // Visual: Multiplicamos x5 para ver la barra moverse aunque el sonido sea bajo
-            meter.style.width = (volumenAgudos * 5) + "%";
-            
-            // Debug en pantalla
-            debug.innerText = "Nivel: " + Math.floor(volumenAgudos);
+            // Visualización
+            meter.style.width = (volumenAgudos * 4) + "%"; 
+            debug.innerText = "Nivel: " + Math.floor(volumenAgudos) + " / Meta: 25";
 
-            // --- LÓGICA DE VIBRACIÓN AJUSTADA ---
-            // UMBRAL: Mayor a 12 (muy sensible)
-            if (volumenAgudos > 12) {
+            // --- LÓGICA ACTUALIZADA: UMBRAL > 25 ---
+            if (volumenAgudos > 25) {
                 const now = Date.now();
                 
-                // COOLDOWN: Esperar 150ms entre vibraciones para no saturar
+                // Cooldown de 150ms para evitar vibración continua
                 if (now - lastVibrateTime > 150) {
-                    debug.style.color = "#00ff00"; // Texto verde
-                    debug.innerText += " (VIBRANDO)";
+                    debug.style.color = "#00ff00"; // Se pone verde al vibrar
                     
                     if (navigator.vibrate) {
-                        // Vibrar 100 milisegundos
                         navigator.vibrate(100); 
                     }
                     lastVibrateTime = now;
                 }
             } else {
-                debug.style.color = "yellow";
+                debug.style.color = "yellow"; // Amarillo si no alcanza el umbral
             }
         }
     </script>
