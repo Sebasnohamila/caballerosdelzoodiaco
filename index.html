@@ -3,82 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiencia Caballeros</title>
+    <title>Experiencia Caballeros - Debug</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
-        /* Estilos Generales */
-        body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #000; }
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
         
-        /* VIDEO DE FONDO */
+        /* MEDIDOR VISUAL (Para ver si el código "escucha" el audio) */
+        #audio-meter {
+            position: fixed; top: 0; left: 0; height: 10px; width: 0%;
+            background-color: #00ff00; z-index: 10000; transition: width 0.1s;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
         #bg-video {
-            position: fixed; top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            object-fit: cover;
-            z-index: 0; opacity: 0; 
-            transition: opacity 1s ease;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            object-fit: cover; z-index: 0; opacity: 0; transition: opacity 1s ease;
         }
 
-        /* Visor 3D */
         model-viewer {
-            width: 100vw; height: 100vh;
-            background-color: transparent; 
-            position: absolute; top: 0; left: 0; 
-            z-index: 1; outline: none;
-            --poster-color: transparent;
+            width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; 
+            z-index: 1; outline: none; --poster-color: transparent;
         }
 
-        /* Botón WhatsApp */
-        #whatsapp-button {
-            position: fixed; bottom: 25px; right: 25px; z-index: 9999;
-            width: 42px; height: 42px; background-color: transparent;
-            display: flex; align-items: center; justify-content: center;
-            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
-            transition: transform 0.3s ease; opacity: 0; pointer-events: none;
-            border: none; text-decoration: none;
-        }
-        #whatsapp-button img { width: 100%; height: 100%; object-fit: contain; }
-        #whatsapp-button:hover { transform: scale(1.1); }
-        body.loaded #whatsapp-button { opacity: 1; pointer-events: auto; }
-
-        /* Pantalla de Carga */
         #splash-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: white;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 999; transition: opacity 0.6s ease-out;
+            background-color: white; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; z-index: 999; 
+            transition: opacity 0.6s ease-out;
         }
-        #company-logo { max-width: 150px; margin-bottom: 40px; }
-        #loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
-            border-radius: 50%; border-left-color: #333;
-            animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading-text { color: #666; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: bold; }
-        #error-message { color: #e74c3c; margin-top: 20px; display: none; text-align: center; font-size: 14px; padding: 0 20px; }
         
         #start-button {
-            display: none; margin-top: 20px; padding: 15px 35px;
-            background-color: #000; color: white;
-            border: none; border-radius: 30px;
-            font-size: 14px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); transition: transform 0.2s ease;
+            margin-top: 20px; padding: 20px 40px; background-color: #000; color: white;
+            border: none; border-radius: 30px; font-size: 16px; font-weight: bold; cursor: pointer;
         }
-        #start-button:active { transform: scale(0.96); }
+
+        /* Texto de estado para depuración */
+        #debug-text {
+            position: fixed; top: 20px; left: 10px; color: red; font-weight: bold; 
+            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 12px;
+        }
     </style>
 </head>
 <body>
 
+    <div id="audio-meter"></div>
+    <div id="debug-text">Esperando inicio...</div>
+
     <div id="splash-screen">
-        <img src="logo.png" alt="Bhastian" id="company-logo" onerror="this.style.display='none'">
-        <div id="loader-container">
-            <div class="spinner"></div>
-            <div class="loading-text" id="progress-text">Cargando 0%</div>
-        </div>
-        <div id="error-message">Error al cargar modelo.<br><small>Verifica el archivo.</small></div>
-        <button id="start-button">VER EXPERIENCIA</button>
+        <h2>EXPERIENCIA 3D</h2>
+        <button id="start-button">TOCA AQUÍ PARA INICIAR</button>
     </div>
 
     <video id="bg-video" loop playsinline crossOrigin="anonymous">
@@ -86,145 +60,99 @@
     </video>
 
     <model-viewer 
-        id="viewer"
-        src="bolapoder1.glb"
-        alt="CABALLEROS DEL ZOODIACO 3D"
-        loading="eager"
-        disable-tap
-        camera-controls
-        camera-target="auto auto auto"
-        camera-orbit="0deg 75deg 105%"
-        min-camera-orbit="auto auto auto"
-        max-camera-orbit="auto auto auto"
-        shadow-intensity="1"
-        ar
-        ar-modes="webxr scene-viewer quick-look">
+        id="viewer" src="bolapoder1.glb" alt="3D Model" 
+        camera-controls shadow-intensity="1">
     </model-viewer>
 
-    <a href="https://wa.me/593983088889" id="whatsapp-button">
-        <img src="whatsapp.png" alt="WhatsApp" onerror="this.style.display='none'">
-    </a>
-
     <script>
-        const modelViewer = document.querySelector('#viewer');
-        const loaderContainer = document.getElementById('loader-container');
-        const startButton = document.getElementById('start-button');
-        const splashScreen = document.getElementById('splash-screen');
-        const bgVideo = document.getElementById('bg-video'); 
-        const errorMsg = document.getElementById('error-message');
-        const progressText = document.getElementById('progress-text');
-        
-        let isLoaded = false;
+        const btn = document.getElementById('start-button');
+        const video = document.getElementById('bg-video');
+        const splash = document.getElementById('splash-screen');
+        const meter = document.getElementById('audio-meter');
+        const debug = document.getElementById('debug-text');
 
-        // --- VARIABLES DE AUDIO Y VIBRACION ---
-        let audioContext, analyser, source;
-        let isAudioInitialized = false;
+        let audioCtx, analyser, source;
+        let lastVibrateTime = 0;
 
-        modelViewer.addEventListener('progress', (event) => {
-            const percentage = Math.round(event.detail.totalProgress * 100);
-            progressText.innerText = `Cargando ${percentage}%`;
-        });
+        btn.addEventListener('click', async () => {
+            try {
+                // 1. Inicializar AudioContext
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                
+                // 2. Crear Analizador
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256; 
 
-        modelViewer.addEventListener('load', () => {
-            console.log("Modelo cargado exitosamente.");
-            isLoaded = true;
-            loaderContainer.style.display = 'none';
-            startButton.style.display = 'block';
-        });
+                // 3. Conectar Video -> Analizador -> Destino
+                // Si esto falla por CORS, saldrá en el catch
+                source = audioCtx.createMediaElementSource(video);
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
 
-        modelViewer.addEventListener('error', (error) => {
-            console.error("Error cargando el modelo:", error);
-            loaderContainer.style.display = 'none';
-            errorMsg.style.display = 'block';
-            errorMsg.innerHTML = `Error al cargar: bolapoder1.glb`;
-        });
+                // 4. Reproducir Video
+                video.muted = false; // Intentar sin mute
+                await video.play();
+                
+                video.style.opacity = '1';
+                splash.style.opacity = '0';
+                setTimeout(() => splash.style.display = 'none', 600);
 
-        startButton.addEventListener('click', () => {
-            // 1. CONFIGURAR AUDIO Y VIBRACION (Requiere interacción del usuario)
-            if (!isAudioInitialized) {
-                try {
-                    // Crear contexto de audio
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    
-                    // Crear fuente desde el video
-                    source = audioContext.createMediaElementSource(bgVideo);
-                    
-                    // Crear analizador
-                    analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 256; 
-                    
-                    // Conectar: Video -> Analizador -> Altavoces (Destination)
-                    // (Si no conectas al destino, el video se queda mudo)
-                    source.connect(analyser);
-                    analyser.connect(audioContext.destination);
-                    
-                    isAudioInitialized = true;
-                    // Iniciar el loop de análisis
-                    analizarAudio();
-                } catch (e) {
-                    console.log("Advertencia de audio (probablemente CORS o local file):", e);
-                    // Si falla el audioContext, el video sigue funcionando normal, solo sin vibración
-                }
+                // Iniciar análisis
+                debug.innerText = "Audio iniciado. Mira la barra verde.";
+                loopAnalisis();
+
+            } catch (e) {
+                console.error(e);
+                debug.innerText = "ERROR: " + e.message;
+                // Si falla createMediaElementSource, suele ser CORS.
+                // Fallback: Reproducir video sin vibración
+                video.play();
+                video.style.opacity = '1';
+                splash.style.display = 'none';
             }
+        });
 
-            // 2. REPRODUCIR VIDEO Y UI
-            bgVideo.muted = false;
-            bgVideo.volume = 1.0;
-            bgVideo.currentTime = 0; 
-
-            bgVideo.play().then(() => {
-                bgVideo.style.opacity = '1';
-                // Si el contexto estaba suspendido (pasa a veces en móviles), lo reanudamos
-                if (audioContext && audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
-            }).catch(error => {
-                console.log("Error al reproducir video:", error);
-                // Fallback si el navegador bloquea el autoplay con sonido
-                bgVideo.muted = true;
-                bgVideo.play();
-                bgVideo.style.opacity = '1';
-            });
+        function loopAnalisis() {
+            requestAnimationFrame(loopAnalisis);
             
-            splashScreen.style.opacity = '0';
-            setTimeout(() => { 
-                splashScreen.style.display = 'none';
-                document.body.classList.add('loaded');
-            }, 600);
-        });
-
-        // --- FUNCION DE ANALISIS DE FRECUENCIA PARA VIBRAR ---
-        function analizarAudio() {
-            if (!isAudioInitialized || bgVideo.paused) {
-                requestAnimationFrame(analizarAudio);
-                return;
-            }
-
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteFrequencyData(dataArray);
 
-            // Analizar solo el último 30% del espectro (Tonos agudos)
-            let sumaAgudos = 0;
-            let contador = 0;
-            let indiceInicio = Math.floor(bufferLength * 0.7); 
-
-            for (let i = indiceInicio; i < bufferLength; i++) {
-                sumaAgudos += dataArray[i];
-                contador++;
+            // Calcular volumen de agudos (última mitad del array)
+            let suma = 0;
+            let count = 0;
+            for (let i = Math.floor(bufferLength * 0.6); i < bufferLength; i++) {
+                suma += dataArray[i];
+                count++;
             }
+            const volumenAgudos = suma / count;
 
-            let promedioAgudos = sumaAgudos / contador;
+            // --- ACTUALIZAR BARRA VISUAL ---
+            // Multiplicamos x2 para que se vea más evidente
+            meter.style.width = (volumenAgudos * 2) + "%";
+            
+            // Debug texto con valor numérico
+            debug.innerText = "Vol: " + Math.floor(volumenAgudos);
 
-            // UMBRAL: Si los agudos superan intensidad 110 (Ajustable 0-255)
-            if (promedioAgudos > 110) {
-                // Vibración corta de 40ms
-                if (navigator.vibrate) {
-                    navigator.vibrate(40); 
+            // --- LOGICA DE VIBRACION ---
+            // Bajamos el umbral a 60 para asegurar que vibre fácil
+            if (volumenAgudos > 60) {
+                const now = Date.now();
+                // "Cooldown": Solo vibrar si pasaron 100ms desde la última vez
+                // Esto evita que el motor se sature y deje de responder
+                if (now - lastVibrateTime > 100) {
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50); // Vibración corta
+                        debug.innerText = "!!! VIBRANDO !!! (" + Math.floor(volumenAgudos) + ")";
+                        debug.style.color = "#00ff00";
+                    }
+                    lastVibrateTime = now;
                 }
+            } else {
+                debug.style.color = "red";
             }
-
-            requestAnimationFrame(analizarAudio);
         }
     </script>
 </body>
