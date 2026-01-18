@@ -14,11 +14,10 @@
         #camera-feed {
             position: fixed; top: 0; left: 0;
             width: 100vw; height: 100vh;
-            object-fit: cover; /* Asegura que la cámara cubra toda la pantalla */
+            object-fit: cover;
             z-index: 0; 
-            transform: scaleX(-1); /* Espejo opcional, quítalo si prefieres vista normal */
+            transform: scaleX(-1);
         }
-        /* Corrección para que la cámara trasera no se vea en espejo en móviles (opcional) */
         @media (max-width: 768px) {
             #camera-feed { transform: scaleX(1); } 
         }
@@ -26,7 +25,7 @@
         /* Visor 3D */
         model-viewer {
             width: 100vw; height: 100vh;
-            background-color: transparent; /* Transparente para ver la cámara */
+            background-color: transparent;
             position: absolute; top: 0; left: 0; 
             z-index: 1; outline: none;
             --poster-color: transparent;
@@ -96,6 +95,8 @@
         src="FINALAUSTRIA-v1.glb"
         alt="CABALLEROS DEL ZOODIACO 3D"
         loading="eager"
+        autoplay
+        animation-name="*"
         disable-tap
         camera-controls
         camera-target="auto auto auto"
@@ -134,6 +135,12 @@
             isLoaded = true;
             loaderContainer.style.display = 'none';
             startButton.style.display = 'block';
+            
+            // Forzamos la reproducción de la animación si existen animaciones disponibles
+            if (modelViewer.availableAnimations.length > 0) {
+                modelViewer.play();
+                console.log("Reproduciendo animación:", modelViewer.availableAnimations[0]);
+            }
         });
 
         modelViewer.addEventListener('error', (error) => {
@@ -147,7 +154,6 @@
         async function startCamera() {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 try {
-                    // Pedimos preferiblemente la cámara trasera ('environment')
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: { facingMode: "environment" } 
                     });
@@ -177,6 +183,8 @@
             setTimeout(() => { 
                 splashScreen.style.display = 'none';
                 document.body.classList.add('loaded');
+                // Nos aseguramos nuevamente de que la animación corra
+                modelViewer.play();
             }, 600);
         });
     </script>
