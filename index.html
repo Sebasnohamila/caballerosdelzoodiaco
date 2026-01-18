@@ -16,8 +16,6 @@
         #webcam {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             object-fit: cover; z-index: 0; 
-            /* Quitamos la transformación de espejo si quieres ver el entorno tal cual es, 
-               o déjala si prefieres modo selfie. Aquí la dejo normal (sin espejo) para AR trasero */
         }
 
         /* CAPA 1: Modelo Fijo (Ambientación) 
@@ -96,7 +94,7 @@
     <video id="webcam" autoplay playsinline muted></video>
     
     <audio id="main-audio" loop crossOrigin="anonymous" preload="auto">
-        <source src="introf1.mp4" type="audio/mp4"> </audio>
+        <source src="caballeros.mp4" type="audio/mp4"> </audio>
 
     <model-viewer 
         id="model-fixed" 
@@ -108,7 +106,6 @@
         field-of-view="45deg"
         disable-zoom
         disable-tap
-        auto-rotate
     >
     </model-viewer>
 
@@ -117,6 +114,7 @@
         src="finalspilberg-v1.glb" 
         alt="Modelo Interactivo" 
         camera-controls 
+        autoplay
         shadow-intensity="1"
         environment-image="neutral"
         ar ar-modes="webxr scene-viewer quick-look"
@@ -130,6 +128,9 @@
         const splash = document.getElementById('splash-screen');
         const meter = document.getElementById('audio-meter');
         const debug = document.getElementById('debug-text');
+        
+        // Referencia al modelo interactivo por si necesitamos forzar el play
+        const interactiveModel = document.getElementById('model-interactive');
 
         let audioCtx, analyser, audioSource;
         let lastVibrateTime = 0;
@@ -140,7 +141,7 @@
             debug.innerText = "Iniciando sistema...";
 
             try {
-                // 1. Configurar Audio Context (Necesario tras clic de usuario)
+                // 1. Configurar Audio Context
                 setupAudio();
                 
                 // 2. Iniciar Audio
@@ -149,13 +150,19 @@
                 // 3. Iniciar Cámara
                 await setupCamera();
                 
-                // 4. Ocultar Splash
+                // 4. Asegurar que la animación del modelo corre al iniciar
+                // (Aunque tiene autoplay, esto asegura que esté corriendo si se pausó antes)
+                if (interactiveModel.paused) {
+                    interactiveModel.play();
+                }
+                
+                // 5. Ocultar Splash
                 splash.style.opacity = '0';
                 setTimeout(() => splash.style.display = 'none', 600);
                 
                 isRunning = true;
-                debug.innerText = ""; // Limpiar texto debug si todo va bien
-                loopAudioAnalysis(); // Solo analizamos audio, no video
+                debug.innerText = ""; 
+                loopAudioAnalysis(); 
 
             } catch (e) {
                 debug.innerText = "Error: " + e.message;
@@ -165,7 +172,6 @@
         });
 
         async function setupCamera() {
-            // Preferimos cámara trasera (environment)
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { 
                     facingMode: 'environment', 
@@ -183,7 +189,6 @@
             analyser = audioCtx.createAnalyser();
             analyser.fftSize = 256; 
             
-            // Conectamos el elemento <audio> al analizador
             audioSource = audioCtx.createMediaElementSource(audioEl);
             audioSource.connect(analyser);
             analyser.connect(audioCtx.destination);
@@ -198,22 +203,18 @@
                 const dataArray = new Uint8Array(bufferLength);
                 analyser.getByteFrequencyData(dataArray);
 
-                // Calcular volumen de agudos/intensidad
                 let suma = 0, count = 0;
-                // Analizamos la mitad superior de frecuencias (más impacto visual)
                 for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) { 
                     suma += dataArray[i]; 
                     count++; 
                 }
                 const promedio = suma / count;
                 
-                // Visualizar en barra verde superior
                 meter.style.width = (promedio * 4) + "%"; 
                 
-                // Lógica de Vibración (Golpes fuertes)
-                if (promedio > 30) { // Umbral de sensibilidad
+                if (promedio > 30) { 
                     const now = Date.now();
-                    if (now - lastVibrateTime > 150) { // Evitar vibración constante
+                    if (now - lastVibrateTime > 150) { 
                         if (navigator.vibrate) navigator.vibrate(40); 
                         lastVibrateTime = now;
                     }
