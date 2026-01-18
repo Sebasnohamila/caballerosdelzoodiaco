@@ -2,41 +2,41 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiencia AR Caballeros - Chroma</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Experiencia AR Caballeros - Loop y 3D</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
+        /* Evitar scroll y rebotes en móvil */
+        html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; font-family: sans-serif; background-color: #000; touch-action: none; }
         
-        /* CAPAS (LAYERS) */
+        /* --- ESTRUCTURA DE CAPAS (Z-INDEX) --- */
         
-        /* Capa 1: Webcam (Fondo real) */
+        /* Z-0: Webcam (Fondo real) */
         #webcam {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 0; transform: scaleX(-1); /* Efecto espejo */
+            object-fit: cover; z-index: 0; transform: scaleX(-1); /* Espejo */
         }
 
-        /* Capa 2: Video procesado (Sin fondo verde) */
+        /* Z-1: Video Chroma (Transparente) */
         #output-canvas {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 1; pointer-events: none; /* Dejar pasar clicks */
+            object-fit: cover; z-index: 1; pointer-events: none; /* No bloquea clicks al 3D */
         }
 
-        /* Capa 3: Modelo 3D */
+        /* Z-2: Modelo 3D (Encima de todo) */
         model-viewer {
-            width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; 
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0; 
             z-index: 2; outline: none; --poster-color: transparent;
         }
 
-        /* Capa 4: UI (Medidor) */
+        /* UI y Controles */
         #audio-meter {
             position: fixed; top: 0; left: 0; height: 10px; width: 0%;
             background-color: #00ff00; z-index: 10000; transition: width 0.1s;
             box-shadow: 0 0 10px #00ff00;
         }
 
-        /* Capa 5: Pantalla de inicio */
         #splash-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: white; display: flex; flex-direction: column; 
@@ -50,38 +50,26 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        /* Capa 6: Aviso de Orientación (SOLO VISIBLE EN VERTICAL) */
+        /* Aviso Landscape */
         #rotate-warning {
-            display: none; /* Oculto por defecto */
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: #1a1a1a; z-index: 20000;
             flex-direction: column; align-items: center; justify-content: center;
             color: white; text-align: center;
         }
-
-        #rotate-icon {
-            font-size: 50px; margin-bottom: 20px;
-            animation: rotar 2s infinite ease-in-out;
-        }
-
-        @keyframes rotar {
-            0% { transform: rotate(0deg); }
-            50% { transform: rotate(-90deg); }
-            100% { transform: rotate(0deg); }
-        }
-
-        /* MEDIA QUERY: Detectar modo vertical (Portrait) */
+        #rotate-icon { font-size: 50px; margin-bottom: 20px; animation: rotar 2s infinite ease-in-out; }
+        @keyframes rotar { 0% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
         @media screen and (orientation: portrait) {
-            #rotate-warning { display: flex; } /* Mostrar aviso */
-            #splash-screen { display: none; }  /* Ocultar splash hasta que giren */
+            #rotate-warning { display: flex; }
+            #splash-screen { display: none; }
         }
 
-        /* Video fuente (Oculto, solo sirve para procesar el audio y la imagen) */
+        /* Video fuente oculto */
         #source-video { display: none; }
 
         #debug-text {
             position: fixed; top: 20px; left: 10px; color: yellow; font-weight: bold; 
-            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px;
+            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px; max-width: 80%; word-wrap: break-word;
         }
     </style>
 </head>
@@ -89,30 +77,36 @@
 
     <div id="rotate-warning">
         <div id="rotate-icon">📱 ➔ 🔄</div>
-        <h2>Por favor, gira tu dispositivo</h2>
-        <p>Esta experiencia requiere modo horizontal (Landscape)</p>
+        <h2>Gira tu dispositivo</h2>
     </div>
 
     <div id="audio-meter"></div>
-    <div id="debug-text">Esperando inicio...</div>
+    <div id="debug-text">Cargando componentes...</div>
 
     <div id="splash-screen">
-        <h2>EXPERIENCIA AR + CAMARA</h2>
-        <p style="color: #666">Permite el acceso a la cámara y sube el volumen</p>
-        <button id="start-button">INICIAR EXPERIENCIA</button>
+        <h2>EXPERIENCIA AR</h2>
+        <p style="color: #666">Permite acceso a cámara y sube volumen</p>
+        <button id="start-button">INICIAR</button>
     </div>
 
     <video id="webcam" autoplay playsinline muted></video>
     
-    <video id="source-video" loop playsinline crossOrigin="anonymous">
-        <source src="mclaren.mp4" type="video/mp4">
+    <video id="source-video" loop playsinline crossOrigin="anonymous" preload="auto">
+        <source src="caballeros.mp4" type="video/mp4">
     </video>
 
     <canvas id="output-canvas"></canvas>
 
     <model-viewer 
-        id="viewer" src="finalspilberg-v1.glb" alt="3D Model" 
-        camera-controls shadow-intensity="1">
+        id="viewer" 
+        src="bolapoder1.glb" 
+        alt="Modelo 3D" 
+        camera-controls 
+        auto-rotate
+        shadow-intensity="1"
+        environment-image="neutral"
+        ar ar-modes="webxr scene-viewer quick-look"
+    >
     </model-viewer>
 
     <script>
@@ -120,66 +114,72 @@
         const sourceVideo = document.getElementById('source-video');
         const webcam = document.getElementById('webcam');
         const canvas = document.getElementById('output-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Optimización
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const splash = document.getElementById('splash-screen');
         const meter = document.getElementById('audio-meter');
         const debug = document.getElementById('debug-text');
+        const modelViewer = document.getElementById('viewer');
 
         let audioCtx, analyser, audioSource;
         let lastVibrateTime = 0;
         let isRunning = false;
 
+        // --- NUEVO: DETECTOR DE ERRORES DEL MODELO 3D ---
+        modelViewer.addEventListener('error', (e) => {
+            console.error("Error cargando modelo 3D:", e);
+            // Esto mostrará en la pantalla del móvil si falla el archivo 3D
+            debug.innerText = "ERROR CRÍTICO 3D: No se pudo cargar 'bolapoder1.glb'. Verifica el nombre exacto en GitHub.";
+            debug.style.color = "red";
+            debug.style.fontSize = "18px";
+        });
+        
+        modelViewer.addEventListener('load', () => {
+             if(!isRunning) debug.innerText = "Modelo 3D cargado correctamente. Listo para iniciar.";
+        });
+        // ------------------------------------------------
+
         btn.addEventListener('click', async () => {
-            // 1. Iniciar Vibración API
             if (navigator.vibrate) navigator.vibrate([100]);
+            debug.innerText = "Iniciando cámara y video...";
 
             try {
-                // 2. Iniciar Audio Context (Para vibración por sonido)
                 setupAudio();
-
-                // 3. Iniciar Cámara Web
                 await setupCamera();
-
-                // 4. Iniciar Video Caballeros
+                
+                // Forzar inicio del video y asegurar que esté en bucle
+                sourceVideo.loop = true; 
                 await sourceVideo.play();
                 
-                // Configurar tamaño del canvas igual a la ventana
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
 
-                // 5. Ocultar Splash y arrancar bucles
                 splash.style.opacity = '0';
                 setTimeout(() => splash.style.display = 'none', 600);
                 
                 isRunning = true;
-                loopProcesamiento(); // Arranca el loop principal
+                debug.innerText = "Experiencia activa. Gira si es necesario.";
+                loopProcesamiento(); 
 
             } catch (e) {
-                debug.innerText = "Error: " + e.message;
-                alert("Error: Asegúrate de estar en HTTPS y permitir la cámara.");
+                debug.innerText = "Error de Inicio: " + e.message;
+                debug.style.color = "red";
             }
         });
 
-        // Configuración de la Webcam
         async function setupCamera() {
+            // Intenta usar la cámara trasera con una resolución óptima para rendimiento
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: 'environment', // Intenta usar cámara trasera
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }, 
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, 
                 audio: false 
             });
             webcam.srcObject = stream;
         }
 
-        // Configuración de Audio
         function setupAudio() {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
             analyser = audioCtx.createAnalyser();
             analyser.fftSize = 256; 
-
             audioSource = audioCtx.createMediaElementSource(sourceVideo);
             audioSource.connect(analyser);
             analyser.connect(audioCtx.destination);
@@ -191,65 +191,39 @@
             canvas.height = window.innerHeight;
         }
 
-        // BUCLE PRINCIPAL (Chroma Key + Audio)
         function loopProcesamiento() {
             if (!isRunning) return;
             requestAnimationFrame(loopProcesamiento);
 
-            // A. PROCESAR CHROMA KEY (Quitar fondo verde)
-            if (sourceVideo.readyState === sourceVideo.HAVE_ENOUGH_DATA) {
-                // 1. Dibujar frame del video en el canvas
+            // CHROMA KEY
+            if (sourceVideo.readyState >= sourceVideo.HAVE_CURRENT_DATA) {
                 ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
-                
-                // 2. Obtener data de los pixeles
                 const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const l = frame.data.length;
-
-                // 3. Recorrer pixeles y buscar verde
                 for (let i = 0; i < l; i += 4) {
-                    const r = frame.data[i];
-                    const g = frame.data[i + 1];
-                    const b = frame.data[i + 2];
-
-                    // LÓGICA DE DETECCIÓN DE VERDE
-                    // Si el Verde es mucho mayor que Rojo y Azul, es fondo verde.
-                    // Ajusta los valores 100 y 1.4 si no borra bien tu fondo.
-                    if (g > 100 && g > (r * 1.4) && g > (b * 1.4)) {
-                        frame.data[i + 3] = 0; // Alpha a 0 (Transparente)
-                    }
+                    const r = frame.data[i], g = frame.data[i+1], b = frame.data[i+2];
+                    // Umbral de verde: Ajusta 1.3 si se borra mucho o poco
+                    if (g > 90 && g > (r * 1.3) && g > (b * 1.3)) frame.data[i + 3] = 0;
                 }
-                
-                // 4. Poner la imagen procesada de vuelta
                 ctx.putImageData(frame, 0, 0);
             }
 
-            // B. PROCESAR AUDIO (Vibración)
+            // AUDIO ANALISIS
             if (analyser) {
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
                 analyser.getByteFrequencyData(dataArray);
-
-                let suma = 0;
-                let count = 0;
-                // Analizamos frecuencias altas
-                for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) {
-                    suma += dataArray[i];
-                    count++;
-                }
+                let suma = 0, count = 0;
+                for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) { suma += dataArray[i]; count++; }
                 const volumenAgudos = suma / count;
-
                 meter.style.width = (volumenAgudos * 4) + "%"; 
-                debug.innerText = "Nivel: " + Math.floor(volumenAgudos);
-
+                
                 if (volumenAgudos > 25) {
                     const now = Date.now();
                     if (now - lastVibrateTime > 150) {
-                        debug.style.color = "#00ff00";
                         if (navigator.vibrate) navigator.vibrate(100); 
                         lastVibrateTime = now;
                     }
-                } else {
-                    debug.style.color = "yellow";
                 }
             }
         }
