@@ -2,231 +2,191 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Experiencia AR Caballeros - Loop y 3D</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experiencia Caballeros AR</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
-        /* Evitar scroll y rebotes en móvil */
-        html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; font-family: sans-serif; background-color: #000; touch-action: none; }
+        /* Estilos Generales */
+        body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #000; }
         
-        /* --- ESTRUCTURA DE CAPAS (Z-INDEX) --- */
-        
-        /* Z-0: Webcam (Fondo real) */
-        #webcam {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 0; transform: scaleX(-1); /* Espejo */
+        /* VIDEO DE LA CÁMARA (Fondo) */
+        #camera-feed {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: cover;
+            z-index: 0; 
+            transform: scaleX(-1);
+        }
+        @media (max-width: 768px) {
+            #camera-feed { transform: scaleX(1); } 
         }
 
-        /* Z-1: Video Chroma (Transparente) */
-        #output-canvas {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 1; pointer-events: none; /* No bloquea clicks al 3D */
-        }
-
-        /* Z-2: Modelo 3D (Encima de todo) */
+        /* Visor 3D */
         model-viewer {
-            width: 100%; height: 100%; position: absolute; top: 0; left: 0; 
-            z-index: 2; outline: none; --poster-color: transparent;
+            width: 100vw; height: 100vh;
+            background-color: transparent;
+            position: absolute; top: 0; left: 0; 
+            z-index: 1; outline: none;
+            --poster-color: transparent;
         }
 
-        /* UI y Controles */
-        #audio-meter {
-            position: fixed; top: 0; left: 0; height: 10px; width: 0%;
-            background-color: #00ff00; z-index: 10000; transition: width 0.1s;
-            box-shadow: 0 0 10px #00ff00;
+        /* Botón WhatsApp */
+        #whatsapp-button {
+            position: fixed; bottom: 25px; right: 25px; z-index: 9999;
+            width: 42px; height: 42px; background-color: transparent;
+            display: flex; align-items: center; justify-content: center;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+            transition: transform 0.3s ease; opacity: 0; pointer-events: none;
+            border: none; text-decoration: none;
         }
+        #whatsapp-button img { width: 100%; height: 100%; object-fit: contain; }
+        #whatsapp-button:hover { transform: scale(1.1); }
+        body.loaded #whatsapp-button { opacity: 1; pointer-events: auto; }
 
+        /* Pantalla de Carga */
         #splash-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: white; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; z-index: 9999; 
-            transition: opacity 0.6s ease-out; text-align: center;
+            background-color: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 999; transition: opacity 0.6s ease-out;
         }
+        #company-logo { max-width: 150px; margin-bottom: 40px; }
+        #loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: #333;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: #666; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: bold; }
+        #error-message { color: #e74c3c; margin-top: 20px; display: none; text-align: center; font-size: 14px; padding: 0 20px; }
         
         #start-button {
-            margin-top: 20px; padding: 25px 50px; background-color: #000; color: white;
-            border: none; border-radius: 30px; font-size: 18px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none; margin-top: 20px; padding: 15px 35px;
+            background-color: #000; color: white;
+            border: none; border-radius: 30px;
+            font-size: 14px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); transition: transform 0.2s ease;
         }
-
-        /* Aviso Landscape */
-        #rotate-warning {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #1a1a1a; z-index: 20000;
-            flex-direction: column; align-items: center; justify-content: center;
-            color: white; text-align: center;
-        }
-        #rotate-icon { font-size: 50px; margin-bottom: 20px; animation: rotar 2s infinite ease-in-out; }
-        @keyframes rotar { 0% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
-        @media screen and (orientation: portrait) {
-            #rotate-warning { display: flex; }
-            #splash-screen { display: none; }
-        }
-
-        /* Video fuente oculto */
-        #source-video { display: none; }
-
-        #debug-text {
-            position: fixed; top: 20px; left: 10px; color: yellow; font-weight: bold; 
-            z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px; max-width: 80%; word-wrap: break-word;
-        }
+        #start-button:active { transform: scale(0.96); }
     </style>
 </head>
 <body>
 
-    <div id="rotate-warning">
-        <div id="rotate-icon">📱 ➔ 🔄</div>
-        <h2>Gira tu dispositivo</h2>
-    </div>
-
-    <div id="audio-meter"></div>
-    <div id="debug-text">Cargando componentes...</div>
-
     <div id="splash-screen">
-        <h2>EXPERIENCIA AR</h2>
-        <p style="color: #666">Permite acceso a cámara y sube volumen</p>
-        <button id="start-button">INICIAR</button>
+        <img src="logo.png" alt="Bhastian" id="company-logo" onerror="this.style.display='none'">
+        <div id="loader-container">
+            <div class="spinner"></div>
+            <div class="loading-text" id="progress-text">Cargando 0%</div>
+        </div>
+        <div id="error-message">Error al cargar modelo.<br><small>Verifica el archivo.</small></div>
+        <button id="start-button">VER EXPERIENCIA</button>
     </div>
 
-    <video id="webcam" autoplay playsinline muted></video>
-    
-    <video id="source-video" loop playsinline crossOrigin="anonymous" preload="auto">
-        <source src="caballeros.mp4" type="video/mp4">
-    </video>
+    <video id="camera-feed" autoplay playsinline muted></video>
 
-    <canvas id="output-canvas"></canvas>
+    <audio id="bg-audio" loop>
+        <source src="mclaren.mp3" type="audio/mp3">
+    </audio>
 
     <model-viewer 
-        id="viewer" 
-        src="bolapoder1.glb" 
-        alt="Modelo 3D" 
-        camera-controls 
-        auto-rotate
+        id="viewer"
+        src="FINALAUSTRIA-v1.glb"
+        alt="CABALLEROS DEL ZOODIACO 3D"
+        loading="eager"
+        autoplay
+        animation-name="*"
+        disable-tap
+        camera-controls
+        camera-target="auto auto auto"
+        camera-orbit="0deg 75deg 105%"
+        min-camera-orbit="auto auto auto"
+        max-camera-orbit="auto auto auto"
         shadow-intensity="1"
-        environment-image="neutral"
-        ar ar-modes="webxr scene-viewer quick-look"
-    >
+        ar
+        ar-modes="webxr scene-viewer quick-look">
     </model-viewer>
 
+    <a href="https://wa.me/593983088889" id="whatsapp-button">
+        <img src="whatsapp.png" alt="WhatsApp" onerror="this.style.display='none'">
+    </a>
+
     <script>
-        const btn = document.getElementById('start-button');
-        const sourceVideo = document.getElementById('source-video');
-        const webcam = document.getElementById('webcam');
-        const canvas = document.getElementById('output-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const splash = document.getElementById('splash-screen');
-        const meter = document.getElementById('audio-meter');
-        const debug = document.getElementById('debug-text');
-        const modelViewer = document.getElementById('viewer');
-
-        let audioCtx, analyser, audioSource;
-        let lastVibrateTime = 0;
-        let isRunning = false;
-
-        // --- NUEVO: DETECTOR DE ERRORES DEL MODELO 3D ---
-        modelViewer.addEventListener('error', (e) => {
-            console.error("Error cargando modelo 3D:", e);
-            // Esto mostrará en la pantalla del móvil si falla el archivo 3D
-            debug.innerText = "ERROR CRÍTICO 3D: No se pudo cargar 'bolapoder1.glb'. Verifica el nombre exacto en GitHub.";
-            debug.style.color = "red";
-            debug.style.fontSize = "18px";
-        });
+        const modelViewer = document.querySelector('#viewer');
+        const loaderContainer = document.getElementById('loader-container');
+        const startButton = document.getElementById('start-button');
+        const splashScreen = document.getElementById('splash-screen');
+        const bgAudio = document.getElementById('bg-audio'); 
+        const cameraFeed = document.getElementById('camera-feed');
+        const errorMsg = document.getElementById('error-message');
+        const progressText = document.getElementById('progress-text');
         
+        let isLoaded = false;
+
+        // Carga del modelo
+        modelViewer.addEventListener('progress', (event) => {
+            const percentage = Math.round(event.detail.totalProgress * 100);
+            progressText.innerText = `Cargando ${percentage}%`;
+        });
+
         modelViewer.addEventListener('load', () => {
-             if(!isRunning) debug.innerText = "Modelo 3D cargado correctamente. Listo para iniciar.";
-        });
-        // ------------------------------------------------
-
-        btn.addEventListener('click', async () => {
-            if (navigator.vibrate) navigator.vibrate([100]);
-            debug.innerText = "Iniciando cámara y video...";
-
-            try {
-                setupAudio();
-                await setupCamera();
-                
-                // Forzar inicio del video y asegurar que esté en bucle
-                sourceVideo.loop = true; 
-                await sourceVideo.play();
-                
-                resizeCanvas();
-                window.addEventListener('resize', resizeCanvas);
-
-                splash.style.opacity = '0';
-                setTimeout(() => splash.style.display = 'none', 600);
-                
-                isRunning = true;
-                debug.innerText = "Experiencia activa. Gira si es necesario.";
-                loopProcesamiento(); 
-
-            } catch (e) {
-                debug.innerText = "Error de Inicio: " + e.message;
-                debug.style.color = "red";
+            console.log("Modelo cargado exitosamente.");
+            isLoaded = true;
+            loaderContainer.style.display = 'none';
+            startButton.style.display = 'block';
+            
+            // Forzamos la reproducción de la animación si existen animaciones disponibles
+            if (modelViewer.availableAnimations.length > 0) {
+                modelViewer.play();
+                console.log("Reproduciendo animación:", modelViewer.availableAnimations[0]);
             }
         });
 
-        async function setupCamera() {
-            // Intenta usar la cámara trasera con una resolución óptima para rendimiento
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                audio: false 
-            });
-            webcam.srcObject = stream;
-        }
+        modelViewer.addEventListener('error', (error) => {
+            console.error("Error cargando el modelo:", error);
+            loaderContainer.style.display = 'none';
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = `Error al cargar: modelo 3D`;
+        });
 
-        function setupAudio() {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256; 
-            audioSource = audioCtx.createMediaElementSource(sourceVideo);
-            audioSource.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            sourceVideo.muted = false; 
-        }
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-
-        function loopProcesamiento() {
-            if (!isRunning) return;
-            requestAnimationFrame(loopProcesamiento);
-
-            // CHROMA KEY
-            if (sourceVideo.readyState >= sourceVideo.HAVE_CURRENT_DATA) {
-                ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
-                const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const l = frame.data.length;
-                for (let i = 0; i < l; i += 4) {
-                    const r = frame.data[i], g = frame.data[i+1], b = frame.data[i+2];
-                    // Umbral de verde: Ajusta 1.3 si se borra mucho o poco
-                    if (g > 90 && g > (r * 1.3) && g > (b * 1.3)) frame.data[i + 3] = 0;
+        // Función para iniciar la cámara
+        async function startCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: "environment" } 
+                    });
+                    cameraFeed.srcObject = stream;
+                } catch (err) {
+                    console.error("Error accediendo a la cámara:", err);
+                    alert("No se pudo acceder a la cámara. Revisa los permisos.");
                 }
-                ctx.putImageData(frame, 0, 0);
-            }
-
-            // AUDIO ANALISIS
-            if (analyser) {
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                analyser.getByteFrequencyData(dataArray);
-                let suma = 0, count = 0;
-                for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) { suma += dataArray[i]; count++; }
-                const volumenAgudos = suma / count;
-                meter.style.width = (volumenAgudos * 4) + "%"; 
-                
-                if (volumenAgudos > 25) {
-                    const now = Date.now();
-                    if (now - lastVibrateTime > 150) {
-                        if (navigator.vibrate) navigator.vibrate(100); 
-                        lastVibrateTime = now;
-                    }
-                }
+            } else {
+                console.error("Tu navegador no soporta acceso a cámara.");
             }
         }
+
+        // Botón de Inicio
+        startButton.addEventListener('click', () => {
+            // 1. Iniciar Audio
+            if(bgAudio) {
+                bgAudio.volume = 1.0;
+                bgAudio.play().catch(e => console.log("Audio error:", e));
+            }
+
+            // 2. Iniciar Cámara
+            startCamera();
+            
+            // 3. Ocultar pantalla de carga
+            splashScreen.style.opacity = '0';
+            setTimeout(() => { 
+                splashScreen.style.display = 'none';
+                document.body.classList.add('loaded');
+                // Nos aseguramos nuevamente de que la animación corra
+                modelViewer.play();
+            }, 600);
+        });
     </script>
 </body>
 </html>
