@@ -2,225 +2,164 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AR Dual - Entorno y 3D</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experiencia Caballeros</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
-        /* Reset y estructura básica */
-        html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; background-color: #000; touch-action: none; font-family: sans-serif; }
+        /* Estilos Generales */
+        body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #000; }
         
-        /* --- CAPAS (Z-INDEX) --- */
-        
-        /* CAPA 0: Webcam (El entorno real) */
-        #webcam {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover; z-index: 0; 
+        /* VIDEO DE FONDO */
+        #bg-video {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: cover;
+            z-index: 0; opacity: 0; 
+            transition: opacity 1s ease;
         }
 
-        /* CAPA 1: Modelo Fijo (Ambientación) 
-           pointer-events: none es CLAVE: permite hacer clic a través de él para tocar el otro modelo */
-        #model-fixed {
-            width: 100%; height: 100%; position: absolute; top: 0; left: 0; 
-            z-index: 1; pointer-events: none;
+        /* Visor 3D */
+        model-viewer {
+            width: 100vw; height: 100vh;
+            background-color: transparent; 
+            position: absolute; top: 0; left: 0; 
+            z-index: 1; outline: none;
             --poster-color: transparent;
         }
 
-        /* CAPA 2: Modelo Interactivo (El que se mueve) */
-        #model-interactive {
-            width: 100%; height: 100%; position: absolute; top: 0; left: 0; 
-            z-index: 2; 
-            --poster-color: transparent;
+        /* Botón WhatsApp */
+        #whatsapp-button {
+            position: fixed; bottom: 25px; right: 25px; z-index: 9999;
+            width: 42px; height: 42px; background-color: transparent;
+            display: flex; align-items: center; justify-content: center;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+            transition: transform 0.3s ease; opacity: 0; pointer-events: none;
+            border: none; text-decoration: none;
         }
+        #whatsapp-button img { width: 100%; height: 100%; object-fit: contain; }
+        #whatsapp-button:hover { transform: scale(1.1); }
+        body.loaded #whatsapp-button { opacity: 1; pointer-events: auto; }
 
-        /* UI: Medidor de Audio */
-        #audio-meter {
-            position: fixed; top: 0; left: 0; height: 10px; width: 0%;
-            background-color: #00ff00; z-index: 10000; transition: width 0.1s;
-            box-shadow: 0 0 10px #00ff00;
-        }
-
-        /* UI: Pantalla de Inicio */
+        /* Pantalla de Carga */
         #splash-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(255, 255, 255, 0.9); display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; z-index: 9999; 
-            transition: opacity 0.6s ease-out; text-align: center;
+            background-color: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 999; transition: opacity 0.6s ease-out;
         }
+        #company-logo { max-width: 150px; margin-bottom: 40px; }
+        #loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: #333;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: #666; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: bold; }
+        #error-message { color: #e74c3c; margin-top: 20px; display: none; text-align: center; font-size: 14px; padding: 0 20px; }
         
         #start-button {
-            margin-top: 20px; padding: 25px 50px; background-color: #000; color: white;
-            border: none; border-radius: 30px; font-size: 18px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none; margin-top: 20px; padding: 15px 35px;
+            background-color: #000; color: white;
+            border: none; border-radius: 30px;
+            font-size: 14px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); transition: transform 0.2s ease;
         }
-
-        /* UI: Aviso Landscape */
-        #rotate-warning {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #1a1a1a; z-index: 20000;
-            flex-direction: column; align-items: center; justify-content: center;
-            color: white; text-align: center;
-        }
-        #rotate-icon { font-size: 50px; margin-bottom: 20px; animation: rotar 2s infinite ease-in-out; }
-        @keyframes rotar { 0% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
-        
-        @media screen and (orientation: portrait) {
-            #rotate-warning { display: flex; }
-            #splash-screen { display: none; }
-        }
-
-        #debug-text {
-            position: fixed; top: 20px; left: 10px; color: white; font-weight: bold; text-shadow: 1px 1px 2px black;
-            z-index: 10001; font-size: 14px; max-width: 80%; pointer-events: none;
-        }
+        #start-button:active { transform: scale(0.96); }
     </style>
 </head>
 <body>
 
-    <div id="rotate-warning">
-        <div id="rotate-icon">📱 ➔ 🔄</div>
-        <h2>Gira tu dispositivo</h2>
-    </div>
-
-    <div id="audio-meter"></div>
-    <div id="debug-text">Esperando inicio...</div>
-
     <div id="splash-screen">
-        <h2>EXPERIENCIA DUAL AR</h2>
-        <p style="color: #666">Cámara + Audio + 2 Modelos 3D</p>
-        <button id="start-button">INICIAR EXPERIENCIA</button>
+        <img src="logo.png" alt="Bhastian" id="company-logo" onerror="this.style.display='none'">
+        <div id="loader-container">
+            <div class="spinner"></div>
+            <div class="loading-text" id="progress-text">Cargando 0%</div>
+        </div>
+        <div id="error-message">Error al cargar modelo.<br><small>Verifica el archivo.</small></div>
+        <button id="start-button">VER EXPERIENCIA</button>
     </div>
 
-    <video id="webcam" autoplay playsinline muted></video>
-    
-    <audio id="main-audio" loop crossOrigin="anonymous" preload="auto">
-        <source src="caballeros.mp4" type="audio/mp4"> </audio>
+    <video id="bg-video" loop playsinline>
+        <source src="mclaren.mp4" type="video/mp4">
+    </video>
 
     <model-viewer 
-        id="model-fixed" 
-        src="mcfront-v1.glb" 
-        alt="Modelo Fondo" 
-        shadow-intensity="1"
-        environment-image="neutral"
-        interaction-prompt="none"
-        field-of-view="45deg"
-        disable-zoom
+        id="viewer"
+        src="finalspilberg-v1.glb"
+        alt="CABALLEROS DEL ZOODIACO 3D"
+        loading="eager"
         disable-tap
-    >
+        camera-controls
+        camera-target="auto auto auto"
+        camera-orbit="0deg 75deg 105%"
+        min-camera-orbit="auto auto auto"
+        max-camera-orbit="auto auto auto"
+        shadow-intensity="1"
+        ar
+        ar-modes="webxr scene-viewer quick-look">
     </model-viewer>
 
-    <model-viewer 
-        id="model-interactive" 
-        src="finalspilberg-v1.glb" 
-        alt="Modelo Interactivo" 
-        camera-controls 
-        autoplay
-        shadow-intensity="1"
-        environment-image="neutral"
-        ar ar-modes="webxr scene-viewer quick-look"
-    >
-    </model-viewer>
+    <a href="https://wa.me/593983088889" id="whatsapp-button">
+        <img src="whatsapp.png" alt="WhatsApp" onerror="this.style.display='none'">
+    </a>
 
     <script>
-        const btn = document.getElementById('start-button');
-        const audioEl = document.getElementById('main-audio');
-        const webcam = document.getElementById('webcam');
-        const splash = document.getElementById('splash-screen');
-        const meter = document.getElementById('audio-meter');
-        const debug = document.getElementById('debug-text');
+        const modelViewer = document.querySelector('#viewer');
+        const loaderContainer = document.getElementById('loader-container');
+        const startButton = document.getElementById('start-button');
+        const splashScreen = document.getElementById('splash-screen');
+        const bgVideo = document.getElementById('bg-video'); 
+        const errorMsg = document.getElementById('error-message');
+        const progressText = document.getElementById('progress-text');
         
-        // Referencia al modelo interactivo por si necesitamos forzar el play
-        const interactiveModel = document.getElementById('model-interactive');
+        let isLoaded = false;
 
-        let audioCtx, analyser, audioSource;
-        let lastVibrateTime = 0;
-        let isRunning = false;
-
-        btn.addEventListener('click', async () => {
-            if (navigator.vibrate) navigator.vibrate([50]);
-            debug.innerText = "Iniciando sistema...";
-
-            try {
-                // 1. Configurar Audio Context
-                setupAudio();
-                
-                // 2. Iniciar Audio
-                await audioEl.play();
-
-                // 3. Iniciar Cámara
-                await setupCamera();
-                
-                // 4. Asegurar que la animación del modelo corre al iniciar
-                // (Aunque tiene autoplay, esto asegura que esté corriendo si se pausó antes)
-                if (interactiveModel.paused) {
-                    interactiveModel.play();
-                }
-                
-                // 5. Ocultar Splash
-                splash.style.opacity = '0';
-                setTimeout(() => splash.style.display = 'none', 600);
-                
-                isRunning = true;
-                debug.innerText = ""; 
-                loopAudioAnalysis(); 
-
-            } catch (e) {
-                debug.innerText = "Error: " + e.message;
-                debug.style.color = "red";
-                console.error(e);
-            }
+        modelViewer.addEventListener('progress', (event) => {
+            const percentage = Math.round(event.detail.totalProgress * 100);
+            progressText.innerText = `Cargando ${percentage}%`;
         });
 
-        async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: 'environment', 
-                    width: { ideal: 1280 }, 
-                    height: { ideal: 720 } 
-                }, 
-                audio: false 
+        modelViewer.addEventListener('load', () => {
+            console.log("Modelo cargado exitosamente.");
+            isLoaded = true;
+            // Hemos eliminado el código que forzaba la cámara a una posición fija.
+            // Ahora model-viewer calculará la mejor vista automáticamente.
+            loaderContainer.style.display = 'none';
+            startButton.style.display = 'block';
+        });
+
+        modelViewer.addEventListener('error', (error) => {
+            console.error("Error cargando el modelo:", error);
+            loaderContainer.style.display = 'none';
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = `Error al cargar: bolapoder1.glb`;
+        });
+
+        // NOTA: Eliminamos el evento 'camera-change' porque restringía el movimiento
+        // y causaba que el objeto desapareciera si no estaba en las coordenadas exactas.
+
+        startButton.addEventListener('click', () => {
+            bgVideo.muted = false;
+            bgVideo.volume = 1.0;
+            bgVideo.currentTime = 0; 
+
+            bgVideo.play().then(() => {
+                bgVideo.style.opacity = '1';
+            }).catch(error => {
+                console.log("Error al reproducir video:", error);
+                bgVideo.muted = true;
+                bgVideo.play();
+                bgVideo.style.opacity = '1';
             });
-            webcam.srcObject = stream;
-        }
-
-        function setupAudio() {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioCtx = new AudioContext();
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256; 
             
-            audioSource = audioCtx.createMediaElementSource(audioEl);
-            audioSource.connect(analyser);
-            analyser.connect(audioCtx.destination);
-        }
-
-        function loopAudioAnalysis() {
-            if (!isRunning) return;
-            requestAnimationFrame(loopAudioAnalysis);
-
-            if (analyser) {
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                analyser.getByteFrequencyData(dataArray);
-
-                let suma = 0, count = 0;
-                for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) { 
-                    suma += dataArray[i]; 
-                    count++; 
-                }
-                const promedio = suma / count;
-                
-                meter.style.width = (promedio * 4) + "%"; 
-                
-                if (promedio > 30) { 
-                    const now = Date.now();
-                    if (now - lastVibrateTime > 150) { 
-                        if (navigator.vibrate) navigator.vibrate(40); 
-                        lastVibrateTime = now;
-                    }
-                }
-            }
-        }
+            splashScreen.style.opacity = '0';
+            setTimeout(() => { 
+                splashScreen.style.display = 'none';
+                document.body.classList.add('loaded');
+            }, 600);
+        });
     </script>
 </body>
 </html>
