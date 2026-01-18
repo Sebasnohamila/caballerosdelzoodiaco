@@ -3,34 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Experiencia Caballeros - Ajustado a 25</title>
+    <title>Experiencia AR Caballeros - Chroma</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <style>
         body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
         
-        /* MEDIDOR VISUAL (Barra verde) */
+        /* CAPAS (LAYERS) */
+        
+        /* Capa 1: Webcam (Fondo real) */
+        #webcam {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 0; transform: scaleX(-1); /* Efecto espejo */
+        }
+
+        /* Capa 2: Video procesado (Sin fondo verde) */
+        #output-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1; pointer-events: none; /* Dejar pasar clicks */
+        }
+
+        /* Capa 3: Modelo 3D */
+        model-viewer {
+            width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; 
+            z-index: 2; outline: none; --poster-color: transparent;
+        }
+
+        /* Capa 4: UI (Medidor) */
         #audio-meter {
             position: fixed; top: 0; left: 0; height: 10px; width: 0%;
             background-color: #00ff00; z-index: 10000; transition: width 0.1s;
             box-shadow: 0 0 10px #00ff00;
         }
 
-        #bg-video {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            object-fit: cover; z-index: 0; opacity: 0; transition: opacity 1s ease;
-        }
-
-        model-viewer {
-            width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; 
-            z-index: 1; outline: none; --poster-color: transparent;
-        }
-
+        /* Capa 5: Pantalla de inicio */
         #splash-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: white; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; z-index: 999; 
-            transition: opacity 0.6s ease-out;
+            align-items: center; justify-content: center; z-index: 9999; 
+            transition: opacity 0.6s ease-out; text-align: center;
         }
         
         #start-button {
@@ -39,7 +50,35 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        /* Texto de estado para depuración */
+        /* Capa 6: Aviso de Orientación (SOLO VISIBLE EN VERTICAL) */
+        #rotate-warning {
+            display: none; /* Oculto por defecto */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #1a1a1a; z-index: 20000;
+            flex-direction: column; align-items: center; justify-content: center;
+            color: white; text-align: center;
+        }
+
+        #rotate-icon {
+            font-size: 50px; margin-bottom: 20px;
+            animation: rotar 2s infinite ease-in-out;
+        }
+
+        @keyframes rotar {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        /* MEDIA QUERY: Detectar modo vertical (Portrait) */
+        @media screen and (orientation: portrait) {
+            #rotate-warning { display: flex; } /* Mostrar aviso */
+            #splash-screen { display: none; }  /* Ocultar splash hasta que giren */
+        }
+
+        /* Video fuente (Oculto, solo sirve para procesar el audio y la imagen) */
+        #source-video { display: none; }
+
         #debug-text {
             position: fixed; top: 20px; left: 10px; color: yellow; font-weight: bold; 
             z-index: 10001; background: rgba(0,0,0,0.7); padding: 5px; font-size: 14px;
@@ -48,18 +87,28 @@
 </head>
 <body>
 
+    <div id="rotate-warning">
+        <div id="rotate-icon">📱 ➔ 🔄</div>
+        <h2>Por favor, gira tu dispositivo</h2>
+        <p>Esta experiencia requiere modo horizontal (Landscape)</p>
+    </div>
+
     <div id="audio-meter"></div>
-    <div id="debug-text">Listo. Umbral ajustado a 25.</div>
+    <div id="debug-text">Esperando inicio...</div>
 
     <div id="splash-screen">
-        <h2>EXPERIENCIA 3D</h2>
-        <p style="color: #666">Sube el volumen al máximo</p>
+        <h2>EXPERIENCIA AR + CAMARA</h2>
+        <p style="color: #666">Permite el acceso a la cámara y sube el volumen</p>
         <button id="start-button">INICIAR EXPERIENCIA</button>
     </div>
 
-    <video id="bg-video" loop playsinline crossOrigin="anonymous">
+    <video id="webcam" autoplay playsinline muted></video>
+    
+    <video id="source-video" loop playsinline crossOrigin="anonymous">
         <source src="caballeros.mp4" type="video/mp4">
     </video>
+
+    <canvas id="output-canvas"></canvas>
 
     <model-viewer 
         id="viewer" src="bolapoder1.glb" alt="3D Model" 
@@ -68,86 +117,140 @@
 
     <script>
         const btn = document.getElementById('start-button');
-        const video = document.getElementById('bg-video');
+        const sourceVideo = document.getElementById('source-video');
+        const webcam = document.getElementById('webcam');
+        const canvas = document.getElementById('output-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Optimización
         const splash = document.getElementById('splash-screen');
         const meter = document.getElementById('audio-meter');
         const debug = document.getElementById('debug-text');
 
-        let audioCtx, analyser, source;
+        let audioCtx, analyser, audioSource;
         let lastVibrateTime = 0;
+        let isRunning = false;
 
         btn.addEventListener('click', async () => {
-            // Vibración inicial para confirmar que el motor responde
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]); 
-            }
+            // 1. Iniciar Vibración API
+            if (navigator.vibrate) navigator.vibrate([100]);
 
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-                
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256; 
+                // 2. Iniciar Audio Context (Para vibración por sonido)
+                setupAudio();
 
-                source = audioCtx.createMediaElementSource(video);
-                source.connect(analyser);
-                analyser.connect(audioCtx.destination);
+                // 3. Iniciar Cámara Web
+                await setupCamera();
 
-                video.muted = false; 
-                await video.play();
+                // 4. Iniciar Video Caballeros
+                await sourceVideo.play();
                 
-                video.style.opacity = '1';
+                // Configurar tamaño del canvas igual a la ventana
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+
+                // 5. Ocultar Splash y arrancar bucles
                 splash.style.opacity = '0';
                 setTimeout(() => splash.style.display = 'none', 600);
-
-                loopAnalisis();
+                
+                isRunning = true;
+                loopProcesamiento(); // Arranca el loop principal
 
             } catch (e) {
                 debug.innerText = "Error: " + e.message;
-                // Fallback en caso de error: reproducir video sin efectos
-                video.play();
-                video.style.opacity = '1';
-                splash.style.display = 'none';
+                alert("Error: Asegúrate de estar en HTTPS y permitir la cámara.");
             }
         });
 
-        function loopAnalisis() {
-            requestAnimationFrame(loopAnalisis);
-            
-            if (!analyser) return;
+        // Configuración de la Webcam
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: 'environment', // Intenta usar cámara trasera
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }, 
+                audio: false 
+            });
+            webcam.srcObject = stream;
+        }
 
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyser.getByteFrequencyData(dataArray);
+        // Configuración de Audio
+        function setupAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256; 
 
-            // Calcular volumen de agudos
-            let suma = 0;
-            let count = 0;
-            for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) {
-                suma += dataArray[i];
-                count++;
-            }
-            const volumenAgudos = suma / count;
+            audioSource = audioCtx.createMediaElementSource(sourceVideo);
+            audioSource.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            sourceVideo.muted = false; 
+        }
 
-            // Visualización
-            meter.style.width = (volumenAgudos * 4) + "%"; 
-            debug.innerText = "Nivel: " + Math.floor(volumenAgudos) + " / Meta: 25";
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
 
-            // --- LÓGICA ACTUALIZADA: UMBRAL > 25 ---
-            if (volumenAgudos > 25) {
-                const now = Date.now();
+        // BUCLE PRINCIPAL (Chroma Key + Audio)
+        function loopProcesamiento() {
+            if (!isRunning) return;
+            requestAnimationFrame(loopProcesamiento);
+
+            // A. PROCESAR CHROMA KEY (Quitar fondo verde)
+            if (sourceVideo.readyState === sourceVideo.HAVE_ENOUGH_DATA) {
+                // 1. Dibujar frame del video en el canvas
+                ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
                 
-                // Cooldown de 150ms para evitar vibración continua
-                if (now - lastVibrateTime > 150) {
-                    debug.style.color = "#00ff00"; // Se pone verde al vibrar
-                    
-                    if (navigator.vibrate) {
-                        navigator.vibrate(100); 
+                // 2. Obtener data de los pixeles
+                const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const l = frame.data.length;
+
+                // 3. Recorrer pixeles y buscar verde
+                for (let i = 0; i < l; i += 4) {
+                    const r = frame.data[i];
+                    const g = frame.data[i + 1];
+                    const b = frame.data[i + 2];
+
+                    // LÓGICA DE DETECCIÓN DE VERDE
+                    // Si el Verde es mucho mayor que Rojo y Azul, es fondo verde.
+                    // Ajusta los valores 100 y 1.4 si no borra bien tu fondo.
+                    if (g > 100 && g > (r * 1.4) && g > (b * 1.4)) {
+                        frame.data[i + 3] = 0; // Alpha a 0 (Transparente)
                     }
-                    lastVibrateTime = now;
                 }
-            } else {
-                debug.style.color = "yellow"; // Amarillo si no alcanza el umbral
+                
+                // 4. Poner la imagen procesada de vuelta
+                ctx.putImageData(frame, 0, 0);
+            }
+
+            // B. PROCESAR AUDIO (Vibración)
+            if (analyser) {
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                analyser.getByteFrequencyData(dataArray);
+
+                let suma = 0;
+                let count = 0;
+                // Analizamos frecuencias altas
+                for (let i = Math.floor(bufferLength * 0.5); i < bufferLength; i++) {
+                    suma += dataArray[i];
+                    count++;
+                }
+                const volumenAgudos = suma / count;
+
+                meter.style.width = (volumenAgudos * 4) + "%"; 
+                debug.innerText = "Nivel: " + Math.floor(volumenAgudos);
+
+                if (volumenAgudos > 25) {
+                    const now = Date.now();
+                    if (now - lastVibrateTime > 150) {
+                        debug.style.color = "#00ff00";
+                        if (navigator.vibrate) navigator.vibrate(100); 
+                        lastVibrateTime = now;
+                    }
+                } else {
+                    debug.style.color = "yellow";
+                }
             }
         }
     </script>
